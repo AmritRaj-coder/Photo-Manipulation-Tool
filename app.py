@@ -1,42 +1,46 @@
-from flask import Flask, render_template, request, send_file
-from PIL import Image, ImageOps
-import io
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 import os
+from PIL import Image, ImageFilter
 
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
 
-# Home page with upload form
+# Ensure upload folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
 @app.route('/')
-def index():
+def home():
     return render_template('index.html')
 
-# Endpoint to handle image upload and manipulation
-@app.route('/process', methods=['POST'])
-def process_image():
+@app.route('/upload', methods=['POST'])
+def upload():
     if 'image' not in request.files:
-        return "No image uploaded", 400
+        return "No image part", 400
 
     file = request.files['image']
     if file.filename == '':
         return "No selected file", 400
 
-    action = request.form.get('action', 'grayscale')
-    image = Image.open(file.stream)
+    if file and allowed_file(file.filename):
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(filepath)
 
-    # Apply transformations
-    if action == 'grayscale':
-        image = ImageOps.grayscale(image)
-    elif action == 'invert':
-        image = ImageOps.invert(image.convert('RGB'))
-    elif action == 'rotate':
-        image = image.rotate(90, expand=True)
+        # Example: apply a blur filter (you can replace with other manipulations)
+        img = Image.open(filepath)
+        img = img.filter(ImageFilter.BLUR)
+        img.save(filepath)
 
-    # Save to BytesIO and send to browser
-    img_io = io.BytesIO()
-    image.save(img_io, 'PNG')
-    img_io.seek(0)
+        return render_template('index.html', filename=file.filename)
 
-    return send_file(img_io, mimetype='image/png')
+    return "File type not allowed", 400
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
