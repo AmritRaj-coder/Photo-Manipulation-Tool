@@ -1,1 +1,6 @@
-Pillow>=11.1.0
+Flask
+gunicorn
+Pillow
+
+
+
